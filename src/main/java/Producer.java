@@ -26,7 +26,7 @@ public class Producer {
 
         for (int i = 0; i < numMessages; i++) {
             final String topic = "1_0";
-            final String key = "Key" + String.valueOf(i % 30);
+            final String key = "Key" + String.valueOf(i % 5);
             final String value = String.valueOf(i);
             if (print) {
                 System.out.println("Topic: " + topic + "\t" + //
