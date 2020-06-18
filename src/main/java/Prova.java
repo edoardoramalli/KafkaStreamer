@@ -11,7 +11,7 @@ public class Prova {
 
     public static void main(String[] args) {
         Map<String, String> edo = new HashMap<>();
-        edo.put("Ciao", "100");
+
         System.out.println(edo);
 
         String qwerty = Streamer.mapToString(edo);

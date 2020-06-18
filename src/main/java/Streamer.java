@@ -118,6 +118,7 @@ public class Streamer implements Runnable {
         this.props_producer.put("acks", "all");
 
         this.setUpProducer();
+        this.setUpProducerState();
 
         this.props_consumer = new Properties();
         this.props_consumer.put("bootstrap.servers", "localhost:9092");
@@ -128,6 +129,9 @@ public class Streamer implements Runnable {
         this.props_consumer.put("value.deserializer", StringDeserializer.class.getName());
 
         this.setUpConsumer();
+        this.setUpConsumerState();
+
+        this.get_state();
 
 
     }
@@ -140,7 +144,6 @@ public class Streamer implements Runnable {
         this.consumer = new KafkaConsumer<>(this.props_consumer);
         final List<String> topics_subscription = new ArrayList<>();
         topics_subscription.add(this.input_topic);
-        topics_subscription.add(this.topic_state);
         consumer.subscribe(topics_subscription);
 
     }
@@ -148,6 +151,20 @@ public class Streamer implements Runnable {
     private void setUpProducer() {
         this.producer = new KafkaProducer<>(this.props_producer);
         producer.initTransactions();
+    }
+
+    private void setUpConsumerState() {
+        this.consumer_state = new KafkaConsumer<>(this.props_consumer);
+        final List<String> topics_subscription = new ArrayList<>();
+        topics_subscription.add(this.topic_state);
+        this.consumer_state.subscribe(topics_subscription);
+
+    }
+
+    private void setUpProducerState() {
+        this.props_producer.put("transactional.id", this.transaction_id + "_state");
+        this.producer_state = new KafkaProducer<>(this.props_producer);
+        this.producer_state.initTransactions();
     }
 
 
@@ -188,14 +205,35 @@ public class Streamer implements Runnable {
         }
     }
 
-    private void get_state(ConsumerRecord<String, String> record){
-        this.state = Streamer.stringToMap(record.value());
+    private void get_state(){
+        System.out.println("here");
+        final ConsumerRecords<String, String> records = this.consumer_state.poll(Duration.of(5, ChronoUnit.MINUTES));
+        System.out.println("fine poll");
+        this.producer_state.beginTransaction();
+        for (final ConsumerRecord<String, String> record : records) {
+            System.out.println("Update State");
+            this.state = Streamer.stringToMap(record.value());
+            System.out.println("Update State finito");
+        }
+
+        // The producer manually commits the outputs for the consumer within the
+        // transaction
+        final Map<TopicPartition, OffsetAndMetadata> map = new HashMap<>();
+        for (final TopicPartition partition : records.partitions()) {
+            final List<ConsumerRecord<String, String>> partitionRecords = records.records(partition);
+            final long lastOffset = partitionRecords.get(partitionRecords.size() - 1).offset();
+            map.put(partition, new OffsetAndMetadata(lastOffset + 1));
+        }
+        System.out.println("Update commit");
+        this.producer_state.sendOffsetsToTransaction(map, this.group_id);
+        this.producer_state.commitTransaction();
+        System.out.println("Update commit finito");
     }
 
     private void update_state(){
         final ProducerRecord<String, String> produce_record =
                 new ProducerRecord<>(this.topic_state, "state", Streamer.mapToString(this.state));
-        final Future<RecordMetadata> future = producer.send(produce_record);
+        final Future<RecordMetadata> future = this.producer_state.send(produce_record);
     }
 
     private void consume() {
@@ -378,15 +416,12 @@ public class Streamer implements Runnable {
                     this.consume();
                     for (final ConsumerRecord<String, String> record : this.last_record_read) {
                         this.start_transaction();
-                        if(record.key().equals("state")){
-                            this.get_state(record);
-                            this.commit_transaction(record);
-                        }else{
-                            ConsumerRecord<String, String> new_record = this.compute(record);
-                            this.produce(new_record);
-                            this.commit_transaction(record);
 
-                        }
+                        ConsumerRecord<String, String> new_record = this.compute(record);
+                        this.produce(new_record);
+                        this.commit_transaction(record);
+
+
 
                     }
 
@@ -494,6 +529,10 @@ public class Streamer implements Runnable {
 
     public static Map<String, String> stringToMap(String input) {
         Map<String, String> map = new HashMap<String, String>();
+
+        if (input.equals("")){
+            return map;
+        }
 
         String[] nameValuePairs = input.split("&");
         for (String nameValuePair : nameValuePairs) {
