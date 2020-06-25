@@ -1,3 +1,4 @@
+import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -5,6 +6,9 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+
+import org.apache.kafka.common.config.ConfigResource;
+
 
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
@@ -23,6 +27,10 @@ import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 
 import org.apache.commons.cli.*;
+
+import javax.swing.plaf.synth.SynthTextAreaUI;
+
+import static org.apache.kafka.common.config.TopicConfig.*;
 
 
 public class Streamer implements Runnable {
@@ -44,6 +52,8 @@ public class Streamer implements Runnable {
 
     private String group_id = "0";
 
+    private final String bootstrap_server = "localhost:9092";
+
     private int node_id;
     private String transaction_id;
     private String name;
@@ -52,21 +62,23 @@ public class Streamer implements Runnable {
     private Properties props_producer;
     private Properties props_consumer;
 
+    private short number_replica = 3;
+
+
     // Consumer
     private ConsumerRecords<String, String> last_record_read;
-    private ConsumerRecords<String, String> last_record_read_state;
 
     // Consumer & Producer
     private KafkaConsumer<String, String> consumer = null;
-    private KafkaProducer<String, String> producer = null;
-
     private KafkaConsumer<String, String> consumer_state = null;
-    private KafkaProducer<String, String> producer_state = null;
+    private KafkaProducer<String, String> producer = null;
 
     // State
     private Map<String, String> state = new HashMap<>();
     private int num_msg = 0;
-    final Random generator = new Random();
+
+    // General Variable
+    private final Duration poll_duration = Duration.of(1, ChronoUnit.MINUTES);
 
 
     public Streamer(String function, int streamer_id, int input_stage, int output_stage, int node_id) {
@@ -76,24 +88,19 @@ public class Streamer implements Runnable {
         this.output_stage = output_stage;
         this.node_id = node_id;
 
-        this.transaction_id = "transaction_id_" +
-                String.valueOf(this.streamer_id) + "_" +
-                String.valueOf(this.input_stage) + "_" +
-                String.valueOf(this.output_stage) + "_" +
-                String.valueOf(this.node_id);
+        this.transaction_id = "transaction_id_" + this.streamer_id + "_" +
+                this.input_stage + "_" +
+                this.output_stage + "_" +
+                this.node_id;
 
-        this.name = String.valueOf(this.input_stage) + "." +
-                String.valueOf(this.output_stage) + "." +
-                String.valueOf(this.node_id);
+        this.name = this.input_stage + "." + this.output_stage + "." + this.node_id;
 
         this.topic_state = "_state_" + this.name;
-
-
 
         if (this.input_stage == -1) {
             this.first_streamer = true;
         } else {
-            this.input_topic = String.valueOf(this.streamer_id) + "_" + String.valueOf(this.input_stage);
+            this.input_topic = this.streamer_id + "_" + this.input_stage;
         }
 
 
@@ -101,15 +108,16 @@ public class Streamer implements Runnable {
             this.last_streamer = true;
         } else {
             if (!this.first_streamer) {
-                this.output_topic = String.valueOf(this.streamer_id) + "_" + String.valueOf(this.output_stage);
+                this.output_topic = this.streamer_id + "_" + this.output_stage;
             } else {
-                this.output_topic = String.valueOf(this.streamer_id) + "_" + String.valueOf(0);
+                this.output_topic = this.streamer_id + "_" + 0;
             }
 
         }
 
+        // Producer Properties
         this.props_producer = new Properties();
-        this.props_producer.put("bootstrap.servers", "localhost:9092");
+        this.props_producer.put("bootstrap.servers", this.bootstrap_server);
         this.props_producer.put("key.serializer", StringSerializer.class.getName());
         this.props_producer.put("value.serializer", StringSerializer.class.getName());
         this.props_producer.put("transactional.id", this.transaction_id);
@@ -119,37 +127,43 @@ public class Streamer implements Runnable {
 
         this.setUpProducer();
 
+        // Consumer Properties
         this.props_consumer = new Properties();
-        this.props_consumer.put("bootstrap.servers", "localhost:9092");
+        this.props_consumer.put("bootstrap.servers", this.bootstrap_server);
         this.props_consumer.put("group.id", this.group_id); // TODO deal with group
-        this.props_consumer.put("isolation.level", "read_committed");
-        this.props_consumer.put("enable.auto.commit", "false");
         this.props_consumer.put("key.deserializer", StringDeserializer.class.getName());
         this.props_consumer.put("value.deserializer", StringDeserializer.class.getName());
+        this.props_consumer.put("isolation.level", "read_committed");
+        this.props_consumer.put("enable.auto.commit", "false");
 
-        this.setUpConsumer();
-
+        // Get Previous State if exist
 
     }
 
-    public Streamer(String function, int streamer_id, int input_stage, int node_id) {
-        this(function, streamer_id, input_stage, -1, node_id);
+    private void setUpConsumerState() {
+        Properties p = new Properties();
+        p.put("bootstrap.servers", this.bootstrap_server);
+        p.put("group.id", "0"); // TODO deal with group
+        p.put("key.deserializer", StringDeserializer.class.getName());
+        p.put("value.deserializer", StringDeserializer.class.getName());
+
+        this.consumer_state = new KafkaConsumer<>(p);
+        final List<String> topics_subscription = new ArrayList<>();
+        topics_subscription.add(this.topic_state);
+        this.consumer_state.subscribe(topics_subscription);
     }
 
     private void setUpConsumer() {
         this.consumer = new KafkaConsumer<>(this.props_consumer);
         final List<String> topics_subscription = new ArrayList<>();
         topics_subscription.add(this.input_topic);
-        topics_subscription.add(this.topic_state);
-        consumer.subscribe(topics_subscription);
-
+        this.consumer.subscribe(topics_subscription);
     }
 
     private void setUpProducer() {
         this.producer = new KafkaProducer<>(this.props_producer);
         producer.initTransactions();
     }
-
 
     private static int adder(int input, int state) {
         return input + state;
@@ -188,20 +202,41 @@ public class Streamer implements Runnable {
         }
     }
 
-    private void get_state(ConsumerRecord<String, String> record){
-        this.state = Streamer.stringToMap(record.value());
+    private void get_state(){
+        final ConsumerRecords<String, String> records = this.consumer_state.poll(this.poll_duration);
+        for (final ConsumerRecord<String, String> record : records) {
+            this.start_transaction();
+            this.compute_state(record);
+            this.commit_transaction(record);
+
+        }
+        if(this.verbose){
+            System.out.println("Streamer " + this.name + " - ID " +
+                    this.streamer_id +
+                    " - State  : " +
+                    this.state);
+        }
+    }
+
+    private void compute_state(ConsumerRecord<String, String> record) {
+        if (record.key().equals("state")){
+            this.state = Streamer.stringToMap(record.value());
+        }
+        else{
+            System.err.println("Not Expected Key");
+        }
     }
 
     private void update_state(){
         final ProducerRecord<String, String> produce_record =
                 new ProducerRecord<>(this.topic_state, "state", Streamer.mapToString(this.state));
-        final Future<RecordMetadata> future = producer.send(produce_record);
+        final Future<RecordMetadata> future = this.producer.send(produce_record);
     }
 
     private void consume() {
         this.last_record_read = null;
         if (!this.first_streamer) {
-            this.last_record_read = this.consumer.poll(Duration.of(5, ChronoUnit.MINUTES));
+            this.last_record_read = this.consumer.poll(this.poll_duration);
             if (this.verbose) {
                 for (final ConsumerRecord<String, String> record : this.last_record_read) {
                     if(!record.key().equals("state")){
@@ -225,26 +260,6 @@ public class Streamer implements Runnable {
                 }
             }
         }
-//        else {
-//            String record_key = "Key" + this.generator.nextInt(30);
-//            String record_value = String.valueOf(this.generator.nextInt(300));
-//            ConsumerRecord<String, String> new_record =
-//                    new ConsumerRecord<>
-//                            (this.output_topic, -1, -1, record_key, record_value);
-//            List<ConsumerRecord<String, String>> record_list = new ArrayList<>();
-//            record_list.add(new_record);
-//            this.last_record_read = record_list;
-//
-//            if (this.verbose) {
-//                System.out.println("Streamer ID " +
-//                        this.streamer_id +
-//                        " - Create : " +
-//                        new_record.key() +
-//                        " = " +
-//                        new_record.value());
-//            }
-//        }
-
     }
 
     private ConsumerRecord<String, String> compute(ConsumerRecord<String, String> record) {
@@ -279,6 +294,11 @@ public class Streamer implements Runnable {
                                 String.valueOf(new_value));
 
         if (this.verbose) {
+            System.out.println("Streamer " + this.name + " - ID " +
+                    this.streamer_id +
+                    " - State  : " +
+                    this.state);
+
             System.out.println("Streamer " + this.name + " - ID " +
                     this.streamer_id +
                     " - Process: " +
@@ -370,6 +390,12 @@ public class Streamer implements Runnable {
 
     @Override
     public void run() {
+        this.setUpConsumerState();
+        this.get_state();
+        this.consumer_state.close();
+
+        // Set up Consumer Stream
+        this.setUpConsumer();
         try {
             while (this.running) {
 
@@ -378,21 +404,19 @@ public class Streamer implements Runnable {
                     this.consume();
                     for (final ConsumerRecord<String, String> record : this.last_record_read) {
                         this.start_transaction();
-                        if(record.key().equals("state")){
-                            this.get_state(record);
-                            this.commit_transaction(record);
-                        }else{
-                            ConsumerRecord<String, String> new_record = this.compute(record);
-                            this.produce(new_record);
-                            this.commit_transaction(record);
 
-                        }
+                        ConsumerRecord<String, String> new_record = this.compute(record);
+                        this.produce(new_record);
+                        this.commit_transaction(record);
+
+
 
                     }
 
                 }  catch (final KafkaException e) {
                     e.printStackTrace();
                     // For all other exceptions, just abort the transaction and try again.
+                    // TODO rollback state
                     this.producer.abortTransaction();
                 }
 
@@ -494,6 +518,10 @@ public class Streamer implements Runnable {
 
     public static Map<String, String> stringToMap(String input) {
         Map<String, String> map = new HashMap<String, String>();
+
+        if (input.equals("")){
+            return map;
+        }
 
         String[] nameValuePairs = input.split("&");
         for (String nameValuePair : nameValuePairs) {
