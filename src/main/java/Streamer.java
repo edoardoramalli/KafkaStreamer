@@ -27,7 +27,7 @@ import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 
 import org.apache.commons.cli.*;
-
+import java.lang.Thread;
 import javax.swing.plaf.synth.SynthTextAreaUI;
 
 import static org.apache.kafka.common.config.TopicConfig.*;
@@ -52,7 +52,7 @@ public class Streamer implements Runnable {
 
     private String group_id = "0";
 
-    private final String bootstrap_server = "localhost:9092";
+    private final String bootstrap_server;
 
     private int node_id;
     private String transaction_id;
@@ -81,26 +81,30 @@ public class Streamer implements Runnable {
     private final Duration poll_duration = Duration.of(1, ChronoUnit.MINUTES);
 
 
-    public Streamer(String function, int streamer_id, int input_stage, int output_stage, int node_id) {
+    public Streamer(String function, int streamer_id, int input_stage, int output_stage, int node_id,
+                    String bootstrap_address) {
         this.parse_function(function);
         this.streamer_id = streamer_id;
         this.input_stage = input_stage;
         this.output_stage = output_stage;
         this.node_id = node_id;
 
-        this.transaction_id = "transaction_id_" + this.streamer_id + "_" +
+        this.bootstrap_server = bootstrap_address;
+
+
+        this.transaction_id = "__transaction_id_" + this.streamer_id + "_" +
                 this.input_stage + "_" +
                 this.output_stage + "_" +
                 this.node_id;
 
-        this.name = this.input_stage + "." + this.output_stage + "." + this.node_id;
+        this.name = this.streamer_id  + "." + this.node_id+ "." + this.input_stage + "." + this.output_stage;
 
-        this.topic_state = "_state_" + this.name;
+        this.topic_state = "__state_" + this.name;
 
         if (this.input_stage == -1) {
             this.first_streamer = true;
         } else {
-            this.input_topic = this.streamer_id + "_" + this.input_stage;
+            this.input_topic = "__stage_" + this.streamer_id + "_" + this.input_stage;
         }
 
 
@@ -108,9 +112,9 @@ public class Streamer implements Runnable {
             this.last_streamer = true;
         } else {
             if (!this.first_streamer) {
-                this.output_topic = this.streamer_id + "_" + this.output_stage;
+                this.output_topic = "__stage_" + this.streamer_id + "_" + this.output_stage;
             } else {
-                this.output_topic = this.streamer_id + "_" + 0;
+                this.output_topic = "__stage_" + this.streamer_id + "_" + 0;
             }
 
         }
@@ -407,6 +411,8 @@ public class Streamer implements Runnable {
 
                         ConsumerRecord<String, String> new_record = this.compute(record);
                         this.produce(new_record);
+                        System.out.println("Sto per committare");
+                        Thread.sleep(2000);
                         this.commit_transaction(record);
 
 
@@ -418,6 +424,8 @@ public class Streamer implements Runnable {
                     // For all other exceptions, just abort the transaction and try again.
                     // TODO rollback state
                     this.producer.abortTransaction();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
 
                 // Sleep
@@ -460,12 +468,16 @@ public class Streamer implements Runnable {
         options.addOption(input);
 
         Option output = new Option("o", "output", true, "Output Stage");
-        output.setRequired(true);
+        output.setRequired(false);
         options.addOption(output);
 
         Option name = new Option("n", "node", true, "Node ID");
         output.setRequired(true);
         options.addOption(name);
+
+        Option bootstrap = new Option("b", "bootstrap", true, "Boostrap ID and port");
+        output.setRequired(true);
+        options.addOption(bootstrap);
 
         CommandLineParser parser = new DefaultParser();
         HelpFormatter formatter = new HelpFormatter();
@@ -484,11 +496,12 @@ public class Streamer implements Runnable {
         int output_stage = Integer.parseInt(cmd.getOptionValue("output"));
         int stream_id = Integer.parseInt(cmd.getOptionValues("stream")[0]);
         int node_id = Integer.parseInt(cmd.getOptionValues("node")[0]);
+        String bootstrap_address = String.valueOf(cmd.getOptionValues("bootstrap")[0]);
 
         String operation = cmd.getOptionValue("function");
 
 
-        Streamer edo = new Streamer(operation, stream_id, input_stage, output_stage, node_id);
+        Streamer edo = new Streamer(operation, stream_id, input_stage, output_stage, node_id, bootstrap_address);
 
 
 

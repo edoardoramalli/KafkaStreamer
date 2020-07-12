@@ -25,7 +25,7 @@ public class Producer {
         final Random r = new Random();
 
         for (int i = 0; i < numMessages; i++) {
-            final String topic = "1_0";
+            final String topic = "__stage_" + "1_0";
             final String key = "Key" + String.valueOf(i % 5);
             final String value = String.valueOf(i);
             if (print) {

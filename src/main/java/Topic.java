@@ -66,9 +66,11 @@ public class Topic {
 
         lista(admin);
 
-        createTopic(admin, "_state_0.1.1");
-        createTopic(admin, "_state_0.1.2");
-        createTopic(admin, "_state_0.1.3");
+        createTopic(admin, "__state_1.1.0.1");
+        createTopic(admin, "__state_1.2.0.1");
+        createTopic(admin, "__state_1.3.0.1");
+        createTopic(admin, "__state_2.1.0.1");
+        createTopic(admin, "__state_3.1.0.1");
 
         lista(admin);
 

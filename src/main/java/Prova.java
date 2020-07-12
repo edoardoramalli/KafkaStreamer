@@ -1,3 +1,4 @@
+
 import java.io.*;
 import java.util.Base64;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ public class Prova {
         Map<String, String> nuvo = new HashMap<>();
         nuvo = Streamer.stringToMap(qwerty);
         System.out.println(nuvo);
+        System.out.println("Ciso");
 
 
     }

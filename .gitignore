@@ -4,3 +4,11 @@
 *.iml
 
 *.xml
+
+.DS_Store
+
+target/classes/
+
+*.jar
+
+target/maven-archiver/
