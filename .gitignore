@@ -3,7 +3,7 @@
 
 *.iml
 
-*.xml
+
 
 .DS_Store
 
@@ -12,3 +12,7 @@ target/classes/
 *.jar
 
 target/maven-archiver/
+
+src/main/template.xml
+
+src/main/java/prova.xml
