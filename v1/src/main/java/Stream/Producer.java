@@ -10,7 +10,7 @@ import org.apache.commons.cli.*;
 
 public class Producer {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         final int numMessages = 100000;
 
         Options options = new Options();
@@ -56,8 +56,12 @@ public class Producer {
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", StringSerializer.class.getName());
         props.put("enable.idempotence", true);
+        props.put("transactional.id", "producer");
 
         final KafkaProducer<String, String> producer = new KafkaProducer<>(props);
+
+        producer.initTransactions();
+
 
         for (int i = 0; i < numMessages; i++) {
             final String topic = "__stage_" + stream_id + "_" + output_stage;
@@ -68,7 +72,9 @@ public class Producer {
                         "Key: " + key + "\t" + //
                         "Value: " + value);
             }
+            producer.beginTransaction();
             producer.send(new ProducerRecord<>(topic, key, value));
+            producer.commitTransaction();
 
             try {
                 Thread.sleep(waitBetweenMsgs);

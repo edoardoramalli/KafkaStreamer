@@ -178,7 +178,7 @@ public class Streamer implements Runnable {
         return input - state;
     }
 
-    private static int identity(int input) {
+    private static int identity(int input, int state) {
         return input;
     }
 
@@ -411,7 +411,7 @@ public class Streamer implements Runnable {
         this.setUpConsumer();
         try {
             while (this.running) {
-
+                System.out.println();
 
                 try {
                     this.consume();
