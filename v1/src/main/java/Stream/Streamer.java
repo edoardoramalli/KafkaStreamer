@@ -1,4 +1,5 @@
-import org.apache.kafka.clients.admin.*;
+package stream;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -7,12 +8,9 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 
-import org.apache.kafka.common.config.ConfigResource;
-
 
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.protocol.types.Field;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
@@ -27,10 +25,11 @@ import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 
 import org.apache.commons.cli.*;
-import java.lang.Thread;
-import javax.swing.plaf.synth.SynthTextAreaUI;
+import sun.rmi.runtime.Log;
 
-import static org.apache.kafka.common.config.TopicConfig.*;
+//import utils.LogUtils;
+
+import java.lang.Thread;
 
 
 public class Streamer implements Runnable {
@@ -91,13 +90,9 @@ public class Streamer implements Runnable {
 
         this.bootstrap_server = bootstrap_address;
 
+        this.name = this.streamer_id + "_" + this.input_stage + "_" + this.node_id;
 
-        this.transaction_id = "__transaction_id_" + this.streamer_id + "_" +
-                this.input_stage + "_" +
-                this.output_stage + "_" +
-                this.node_id;
-
-        this.name = this.streamer_id  + "." + this.node_id+ "." + this.input_stage + "." + this.output_stage;
+        this.transaction_id = "__transaction_id_" + this.name;
 
         this.topic_state = "__state_" + this.name;
 
@@ -118,6 +113,8 @@ public class Streamer implements Runnable {
             }
 
         }
+
+        this.print_info();
 
         // Producer Properties
         this.props_producer = new Properties();
@@ -140,7 +137,7 @@ public class Streamer implements Runnable {
         this.props_consumer.put("isolation.level", "read_committed");
         this.props_consumer.put("enable.auto.commit", "false");
 
-        // Get Previous State if exist
+
 
     }
 
@@ -181,7 +178,7 @@ public class Streamer implements Runnable {
         return input - state;
     }
 
-    private static int identity(int input, int state) {
+    private static int identity(int input) {
         return input;
     }
 
@@ -391,6 +388,18 @@ public class Streamer implements Runnable {
         this.producer.beginTransaction();
     }
 
+    private void print_info(){
+        System.out.println("===INFO===");
+        System.out.println("BootStrap Server:  " + this.bootstrap_server);
+        System.out.println("Name Streamer:  " + this.name);
+        System.out.println("Input Topic:  " + this.input_topic);
+        System.out.println("Output Topic:  " + this.output_topic);
+        System.out.println("State Topic:  " + this.topic_state);
+        System.out.println("==========");
+
+
+    }
+
 
     @Override
     public void run() {
@@ -398,7 +407,7 @@ public class Streamer implements Runnable {
         this.get_state();
         this.consumer_state.close();
 
-        // Set up Consumer Stream
+        // Set up Consumer stream
         this.setUpConsumer();
         try {
             while (this.running) {
@@ -408,11 +417,8 @@ public class Streamer implements Runnable {
                     this.consume();
                     for (final ConsumerRecord<String, String> record : this.last_record_read) {
                         this.start_transaction();
-
                         ConsumerRecord<String, String> new_record = this.compute(record);
                         this.produce(new_record);
-                        System.out.println("Sto per committare");
-                        Thread.sleep(2000);
                         this.commit_transaction(record);
 
 
@@ -424,8 +430,6 @@ public class Streamer implements Runnable {
                     // For all other exceptions, just abort the transaction and try again.
                     // TODO rollback state
                     this.producer.abortTransaction();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
 
                 // Sleep
@@ -451,7 +455,7 @@ public class Streamer implements Runnable {
 
     public static void main(String[] args) throws ExecutionException, InterruptedException {
 
-
+//        LogUtils.setLogLevel();
 
         Options options = new Options();
 
@@ -492,8 +496,14 @@ public class Streamer implements Runnable {
             System.exit(1);
         }
 
+        System.out.println(cmd.getOptionValue("output"));
+
         int input_stage = Integer.parseInt(cmd.getOptionValue("input"));
-        int output_stage = Integer.parseInt(cmd.getOptionValue("output"));
+        String out_parse = cmd.getOptionValue("output");
+        int output_stage = -1;
+        if(out_parse != null){
+            output_stage = Integer.parseInt(cmd.getOptionValue("output"));
+        }
         int stream_id = Integer.parseInt(cmd.getOptionValues("stream")[0]);
         int node_id = Integer.parseInt(cmd.getOptionValues("node")[0]);
         String bootstrap_address = String.valueOf(cmd.getOptionValues("bootstrap")[0]);

@@ -1,12 +1,8 @@
-import org.apache.kafka.clients.admin.*;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.config.ConfigResource;
-import org.apache.kafka.common.serialization.StringDeserializer;
+package stream;
 
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
+import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.common.config.ConfigResource;
+
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -66,13 +62,13 @@ public class Topic {
 
         lista(admin);
 
-        createTopic(admin, "__state_1.1.0.1");
-        createTopic(admin, "__state_1.2.0.1");
-        createTopic(admin, "__state_1.3.0.1");
-        createTopic(admin, "__state_2.1.0.1");
-        createTopic(admin, "__state_3.1.0.1");
-
-        lista(admin);
+//        createTopic(admin, "__state_1.1.0.1");
+//        createTopic(admin, "__state_1.2.0.1");
+//        createTopic(admin, "__state_1.3.0.1");
+//        createTopic(admin, "__state_2.1.0.1");
+//        createTopic(admin, "__state_3.1.0.1");
+//
+//        lista(admin);
 
 
 

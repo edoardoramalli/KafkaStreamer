@@ -1,0 +1,7 @@
+<pipeline>
+    <pipe>
+        <input_stage></input_stage>
+        <function>java_file_path</function>
+
+    </pipe>
+</pipeline>

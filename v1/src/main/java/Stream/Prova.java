@@ -1,10 +1,7 @@
+package stream;
 
-import java.io.*;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
 
 
 public class Prova {
