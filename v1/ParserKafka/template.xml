@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<Stream id="1996">
+    <bootstrap value="127.0.0.1:9092"/>
+    <bootstrap value="127.0.0.1:9093"/>
+    <zookeeper value="127.0.0.1:2181"/>
+    <log value="/Users/edoardo/PycharmProjects/ParserKafka/Log"/>
+    <kafka value="/Users/edoardo/Documents/kafka/bin/"/>
+    <replica value="2"/>
+    <partition value="2"/>
+    <jar value="/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/"/>
+    <Streamer>
+        <stage>0</stage>
+        <operation>adder</operation>
+    </Streamer>
+    <Streamer>
+        <stage>2</stage>
+        <operation>adder</operation>
+    </Streamer>
+    <Streamer>
+        <stage>1</stage>
+        <operation>adder</operation>
+    </Streamer>
+</Stream>
