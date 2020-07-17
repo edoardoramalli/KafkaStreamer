@@ -37,9 +37,9 @@ def string_normal_topic(kafka_folder, zookeeper, replica, partition, topic_name)
 def string_compact_topic(kafka_folder, zookeeper, replica, partition, topic_name):
     command = string_normal_topic(kafka_folder, zookeeper, replica, partition, topic_name)
     command += " --config cleanup.policy=compact "
-    command += " --config delete.retention.ms=100 "
-    command += " --config segment.ms=100 "
-    command += " --config min.cleanable.dirty.ratio=0.01 "
+    command += " --config delete.retention.ms=10 "
+    command += " --config segment.ms=10 "
+    command += " --config min.cleanable.dirty.ratio=0 "
 
     return command
 
