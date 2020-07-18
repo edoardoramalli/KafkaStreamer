@@ -145,7 +145,7 @@ def parse_xml(filename):
     create_bash_topic(kafka_folder, list_stage, stream_id, zookeeper, replica, partition)
 
     # Create Producer
-    create_producer(jar_folder, stream_id, list_stage[0], bootstrap[0], bash_folder)
+    create_producer(jar_folder, stream_id, list_stage[0], bootstrap[0], bash_folder, partition)
 
 
 def main(args):

@@ -84,13 +84,14 @@ def create_bash_kafka_server(kafka_folder, kafka_config, index, bash_folder):
         file.write(command + "\n")
 
 
-def create_producer(jar_folder, stream_id, initial_stage, bootstrap, bash_folder, wait=5000):
+def create_producer(jar_folder, stream_id, initial_stage, bootstrap, bash_folder, partition, wait=5000):
     command = "java -jar  "
     command += str(jar_folder) + "/Producer.jar "
     command += " -b " + str(bootstrap)
     command += " -o " + str(initial_stage)
     command += " -s " + str(stream_id)
     command += " -w " + str(wait)
+    command += " -p " + str(partition)
 
     with open(bash_folder + "/StartProducer.sh", "w") as file:
         file.write("#!/usr/bin/env bash" + "\n")

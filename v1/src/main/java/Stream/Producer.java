@@ -31,6 +31,10 @@ public class Producer {
         output.setRequired(true);
         options.addOption(bootstrap);
 
+        Option part = new Option("p", "partition", true, "Number of partition");
+        output.setRequired(true);
+        options.addOption(part);
+
         CommandLineParser parser = new DefaultParser();
         HelpFormatter formatter = new HelpFormatter();
         CommandLine cmd = null;
@@ -46,6 +50,7 @@ public class Producer {
         int waitBetweenMsgs = Integer.parseInt(cmd.getOptionValue("wait"));
         int output_stage = Integer.parseInt(cmd.getOptionValue("output"));
         int stream_id = Integer.parseInt(cmd.getOptionValues("stream")[0]);
+        int partition = Integer.parseInt(cmd.getOptionValues("partition")[0]);
         String bootstrap_address = String.valueOf(cmd.getOptionValues("bootstrap")[0]);
 
 
@@ -65,7 +70,7 @@ public class Producer {
 
         for (int i = 0; i < numMessages; i++) {
             final String topic = "__stage_" + stream_id + "_" + output_stage;
-            final String key = "Key" + String.valueOf(i % 5);
+            final String key = "Key" + String.valueOf(i % partition);
             final String value = String.valueOf(i);
             if (print) {
                 System.out.println("Topic: " + topic + "\t" + //
