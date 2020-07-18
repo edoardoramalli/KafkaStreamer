@@ -39,7 +39,9 @@ def string_compact_topic(kafka_folder, zookeeper, replica, partition, topic_name
     command += " --config cleanup.policy=compact "
     command += " --config delete.retention.ms=10 "
     command += " --config segment.ms=10 "
-    command += " --config min.cleanable.dirty.ratio=0 "
+    # command += " --config min.cleanable.dirty.ratio=0 "
+    command += " --config flush.messages=1 "
+
 
     return command
 

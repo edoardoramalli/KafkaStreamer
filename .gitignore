@@ -3,15 +3,11 @@
 
 *.iml
 
-
-
 .DS_Store
 
 target/classes/
 
 v1/ParserKafka/Log/
-
-*.jar
 
 target/maven-archiver/
 
@@ -19,20 +15,10 @@ src/main/template.xml
 
 src/main/java/prova.xml
 
-v1/target/maven-status/maven-compiler-plugin/compile/default-compile/
-
-v1/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/
-
-v1/target/classes/stream/
-
-v1/target/classes/Prova/META-INF/
-
-v1/target/classes/Producer/META-INF/MANIFEST.MF
-
-v1/target/classes/Topic/META-INF/MANIFEST.MF
-
-v1/target/maven-archiver/pom.properties
+v1/target/
 
 v1/Jar/Log/
 
 v1/ParserKafka/__pycache__/
+
+classes/artifacts/

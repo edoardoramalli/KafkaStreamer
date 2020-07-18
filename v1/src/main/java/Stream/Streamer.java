@@ -8,7 +8,6 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 
-
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -20,13 +19,11 @@ import java.net.URLEncoder;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 
 import org.apache.commons.cli.*;
 
-//import utils.LogUtils;
 
 import java.lang.Thread;
 
@@ -36,35 +33,28 @@ public class Streamer implements Runnable {
     private BiFunction<Integer, Integer, Integer> function;
     private String function_name;
 
-
     private int streamer_id;
+    private String group_id = "0";
+    private int node_id;
+    private String transaction_id;
+
     private int input_stage;
     private int output_stage;
-    private String input_topic = "";
-    private String output_topic = "";
+    private String topic_state;
+
+    private String input_topic;
+    private String output_topic;
     private boolean last_streamer = false;
-    private boolean first_streamer = false;
 
     private boolean running = true;
     private boolean verbose = true;
 
-    private String group_id = "0";
-
     private final String bootstrap_server;
 
-    private int node_id;
-    private String transaction_id;
     private String name;
-    private String topic_state;
 
     private Properties props_producer;
     private Properties props_consumer;
-
-    private short number_replica = 3;
-
-
-    // Consumer
-    private ConsumerRecords<String, String> last_poll_read;
 
     // Consumer & Producer
     private KafkaConsumer<String, String> consumer = null;
@@ -82,36 +72,24 @@ public class Streamer implements Runnable {
 
     public Streamer(String function, int streamer_id, int input_stage, int output_stage, int node_id,
                     String bootstrap_address) {
+
         this.parse_function(function);
         this.streamer_id = streamer_id;
         this.input_stage = input_stage;
         this.output_stage = output_stage;
         this.node_id = node_id;
-
         this.bootstrap_server = bootstrap_address;
 
         this.name = this.streamer_id + "_" + this.input_stage + "_" + this.node_id;
-
         this.transaction_id = "__transaction_id_" + this.name;
 
         this.topic_state = "__state_" + this.name;
-
-        if (this.input_stage == -1) {
-            this.first_streamer = true;
-        } else {
-            this.input_topic = "__stage_" + this.streamer_id + "_" + this.input_stage;
-        }
-
-
+        this.input_topic = "__stage_" + this.streamer_id + "_" + this.input_stage;
         if (this.output_stage == -1) {
             this.last_streamer = true;
+            this.output_topic = "__stage_" + this.streamer_id + "_END";
         } else {
-            if (!this.first_streamer) {
-                this.output_topic = "__stage_" + this.streamer_id + "_" + this.output_stage;
-            } else {
-                this.output_topic = "__stage_" + this.streamer_id + "_" + 0;
-            }
-
+            this.output_topic = "__stage_" + this.streamer_id + "_" + this.output_stage;
         }
 
         this.print_info();
@@ -137,10 +115,8 @@ public class Streamer implements Runnable {
         this.props_consumer.put("isolation.level", "read_committed");
         this.props_consumer.put("enable.auto.commit", "false");
 
-
         this.resume_state();
 
-        // Set up Consumer stream
         this.setUpConsumer();
     }
 
@@ -150,6 +126,7 @@ public class Streamer implements Runnable {
         p.put("group.id", this.group_id);
         p.put("key.deserializer", StringDeserializer.class.getName());
         p.put("value.deserializer", StringDeserializer.class.getName());
+        p.put("isolation.level", "read_committed");
 
         this.consumer_state = new KafkaConsumer<>(p);
         final List<String> topics_subscription = new ArrayList<>();
@@ -185,6 +162,10 @@ public class Streamer implements Runnable {
         return input;
     }
 
+    /**
+     * Transform from string name to pointer to the function
+     * @param function_name name of the operation
+     */
     private void parse_function(String function_name) {
         switch (function_name) {
             case "adder":
@@ -237,6 +218,9 @@ public class Streamer implements Runnable {
         }
     }
 
+    /**
+     * Rollback to previous state if transaction fail
+     */
     private void rollback_state(){
         this.state = this.old_state;
         if (this.verbose) {
@@ -268,41 +252,51 @@ public class Streamer implements Runnable {
         final ProducerRecord<String, String> produce_record =
                 new ProducerRecord<>(this.topic_state, "state", Streamer.mapToString(this.state));
         final Future<RecordMetadata> future = this.producer.send(produce_record);
+        this.producer.flush();
+
     }
 
-    private void consume() {
-        this.last_poll_read = null;
-        if (!this.first_streamer) {
-            this.last_poll_read = this.consumer.poll(this.poll_duration);
-            if (this.verbose) {
-                for (final ConsumerRecord<String, String> record : this.last_poll_read) {
-                    if (!record.key().equals("state")) {
-                        System.out.println("Streamer " + this.name + " - ID " +
-                                this.streamer_id +
-                                " - Consume: " +
-                                record.key() +
-                                " = " +
-                                record.value() +
-                                " - Partition: " +
-                                record.partition());
-                    } else {
-                        System.out.println("Streamer " + this.name + " - ID " +
-                                this.streamer_id +
-                                " - Consume: State" +
-                                " - Partition: " +
-                                record.partition());
-                    }
+    /**
+     * Get a poll of records from the input topic
+     */
+    private ConsumerRecords<String, String> getPoll() {
+       return this.consumer.poll(this.poll_duration);
+    }
 
-                }
+    private void consume(ConsumerRecord<String, String> record){
+        if (this.verbose) {
+            if (!record.key().equals("state")) {
+                System.out.println("Streamer " + this.name + " - ID " +
+                        this.streamer_id +
+                        " - Consume: " +
+                        record.key() +
+                        " = " +
+                        record.value() +
+                        " - Partition: " +
+                        record.partition());
+            } else {
+                System.out.println("Streamer " + this.name + " - ID " +
+                        this.streamer_id +
+                        " - Consume: State" +
+                        " - Partition: " +
+                        record.partition());
             }
         }
     }
 
+
+    /**
+     * Given an input record
+     * Update number of messages
+     * Update the current state in a safe mode
+     * Apply the function of the stage (second operator is always 1)
+     * Produce a new record with new value but keeping same key
+     * @param record under processing
+     * @return record produced for downstream
+     */
     private ConsumerRecord<String, String> compute(ConsumerRecord<String, String> record) {
 
         this.num_msg += 1;
-
-        // Update State
 
         this.update_state(record);
 
@@ -311,8 +305,8 @@ public class Streamer implements Runnable {
         ConsumerRecord<String, String> new_record =
                 new ConsumerRecord<>
                         (this.output_topic,
-                                record.partition(),
-                                record.offset(),
+                                -1,
+                                -1,
                                 record.key(),
                                 String.valueOf(new_value));
 
@@ -345,17 +339,6 @@ public class Streamer implements Runnable {
             final ProducerRecord<String, String> produce_record =
                     new ProducerRecord<>(this.output_topic, record.key(), record.value());
             final Future<RecordMetadata> future = producer.send(produce_record);
-
-            boolean waitAck = false; //TODO capire se serve veramente
-
-            if (waitAck) {
-                try {
-                    System.out.println(future.get());
-                } catch (InterruptedException | ExecutionException e1) {
-                    e1.printStackTrace();
-                }
-            }
-
             if (this.verbose) {
                 System.out.println("Streamer " + this.name + " - ID " +
                         this.streamer_id +
@@ -366,9 +349,9 @@ public class Streamer implements Runnable {
             }
         } else {
             if (this.verbose) {
-                System.out.println("Streamer ID " +
+                System.out.println("Streamer " + this.name + " - ID " +
                         this.streamer_id +
-                        " - Close: " +
+                        " - Close  : " +
                         record.key() +
                         " = " +
                         record.value());
@@ -377,6 +360,11 @@ public class Streamer implements Runnable {
 
     }
 
+    /**
+     * Producer commit offsets consumer and writes in an atomic way
+     * Otherwise consumer and producer don't know each other
+     * @param record under processing
+     */
     private void commit_transaction(ConsumerRecord<String, String> record) {
         final Map<TopicPartition, OffsetAndMetadata> map = new HashMap<>();
         map.put(new TopicPartition(record.topic(), record.partition()), new OffsetAndMetadata(record.offset() + 1));
@@ -393,7 +381,6 @@ public class Streamer implements Runnable {
                     record.partition());
         }
         if (this.verbose && record.key().equals("state")) {
-            // TODO controllare se viene eseguito
             System.out.println("Streamer " + this.name + " - ID " +
                     this.streamer_id +
                     " - Commit : State" +
@@ -402,6 +389,9 @@ public class Streamer implements Runnable {
         }
     }
 
+    /**
+     * Begin Transaction
+     */
     private void start_transaction() {
         this.producer.beginTransaction();
     }
@@ -445,16 +435,17 @@ public class Streamer implements Runnable {
         try {
             while (this.running) {
                 try {
-                    this.consume();
-                    for (final ConsumerRecord<String, String> record : this.last_poll_read) {
+                    for (final ConsumerRecord<String, String> record : this.getPoll()) {
+                        System.out.println();
+                        this.consume(record);
                         this.start_transaction();
                         ConsumerRecord<String, String> new_record = this.compute(record);
                         this.produce(new_record);
-                        this.commit_transaction(record); // Commit writes and offset of consumer in an atomic way, in the same transaction
-                        System.out.println();
-                        Thread.sleep(2000);
+                        this.commit_transaction(record);
+                        Thread.sleep(1000);
                     }
                 } catch (final KafkaException e) {
+                    this.producer.flush();
                     this.producer.abortTransaction();
                     this.rollback_state();
                 } catch (final InterruptedException e) {
@@ -469,10 +460,28 @@ public class Streamer implements Runnable {
     }
 
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public static void main(String[] args){
 
-//        LogUtils.setLogLevel();
+        CommandLine cmd = parseArguments(args);
 
+        int input_stage = Integer.parseInt(cmd.getOptionValue("input"));
+        String out_parse = cmd.getOptionValue("output");
+        int output_stage = -1;
+        if (out_parse != null) {
+            output_stage = Integer.parseInt(cmd.getOptionValue("output"));
+        }
+        int stream_id = Integer.parseInt(cmd.getOptionValues("stream")[0]);
+        int node_id = Integer.parseInt(cmd.getOptionValues("node")[0]);
+        String bootstrap_address = String.valueOf(cmd.getOptionValues("bootstrap")[0]);
+        String operation = cmd.getOptionValue("function");
+
+        Streamer stream = new Streamer(operation, stream_id, input_stage, output_stage, node_id, bootstrap_address);
+
+        stream.run();
+
+    }
+
+    private static CommandLine parseArguments(String[] args){
         Options options = new Options();
 
         Option function = new Option("f", "function", true, "Function of the streamer");
@@ -512,26 +521,7 @@ public class Streamer implements Runnable {
             System.exit(1);
         }
 
-        System.out.println(cmd.getOptionValue("output"));
-
-        int input_stage = Integer.parseInt(cmd.getOptionValue("input"));
-        String out_parse = cmd.getOptionValue("output");
-        int output_stage = -1;
-        if (out_parse != null) {
-            output_stage = Integer.parseInt(cmd.getOptionValue("output"));
-        }
-        int stream_id = Integer.parseInt(cmd.getOptionValues("stream")[0]);
-        int node_id = Integer.parseInt(cmd.getOptionValues("node")[0]);
-        String bootstrap_address = String.valueOf(cmd.getOptionValues("bootstrap")[0]);
-
-        String operation = cmd.getOptionValue("function");
-
-
-        Streamer edo = new Streamer(operation, stream_id, input_stage, output_stage, node_id, bootstrap_address);
-
-
-        edo.run();
-
+        return cmd;
     }
 
     private static String mapToString(Map<String, String> map) {
@@ -555,7 +545,7 @@ public class Streamer implements Runnable {
     }
 
     private static Map<String, String> stringToMap(String input) {
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<>();
 
         if (input.equals("")) {
             return map;
