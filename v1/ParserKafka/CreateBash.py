@@ -30,16 +30,21 @@ def string_normal_topic(kafka_folder, zookeeper, replica, partition, topic_name)
     command += " --replication-factor " + str(replica)
     command += " --partitions " + str(partition)
     command += " --topic " + str(topic_name)
+    command += " --config cleanup.policy=delete "
 
     return command
 
 
 def string_compact_topic(kafka_folder, zookeeper, replica, partition, topic_name):
-    command = string_normal_topic(kafka_folder, zookeeper, replica, partition, topic_name)
+    command = "sh "
+    command += str(kafka_folder) + "/kafka-topics.sh "
+    command += " --create "
+    command += " --zookeeper " + str(zookeeper)
+    command += " --replication-factor " + str(replica)
+    command += " --partitions " + str(partition)
+    command += " --topic " + str(topic_name)
     command += " --config cleanup.policy=compact "
     command += " --config delete.retention.ms=10 "
-    command += " --config segment.ms=10 "
-    # command += " --config min.cleanable.dirty.ratio=0 "
     command += " --config flush.messages=1 "
 
 

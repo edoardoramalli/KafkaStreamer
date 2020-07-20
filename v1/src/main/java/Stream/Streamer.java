@@ -67,7 +67,7 @@ public class Streamer implements Runnable {
     private int num_msg = 0;
 
     // General Variable
-    private final Duration poll_duration = Duration.of(1, ChronoUnit.MINUTES);
+    private final Duration poll_duration = Duration.of(5, ChronoUnit.SECONDS);
 
 
     public Streamer(String function, int streamer_id, int input_stage, int output_stage, int node_id,
@@ -114,6 +114,7 @@ public class Streamer implements Runnable {
         this.props_consumer.put("value.deserializer", StringDeserializer.class.getName());
         this.props_consumer.put("isolation.level", "read_committed");
         this.props_consumer.put("enable.auto.commit", "false");
+        this.props_consumer.put("auto.offset.reset", "earliest");
 
         this.resume_state();
 
@@ -126,7 +127,10 @@ public class Streamer implements Runnable {
         p.put("group.id", this.group_id);
         p.put("key.deserializer", StringDeserializer.class.getName());
         p.put("value.deserializer", StringDeserializer.class.getName());
+        p.put("enable.auto.commit", "false");
         p.put("isolation.level", "read_committed");
+        p.put("auto.offset.reset", "earliest");
+
 
         this.consumer_state = new KafkaConsumer<>(p);
         final List<String> topics_subscription = new ArrayList<>();
@@ -192,11 +196,17 @@ public class Streamer implements Runnable {
      * Compute new state
      */
     private void get_state() {
-        final ConsumerRecords<String, String> records = this.consumer_state.poll(this.poll_duration);
-        for (final ConsumerRecord<String, String> record : records) {
-            this.start_transaction();
-            this.compute_state(record);
-            this.commit_transaction(record);
+        boolean empty = false;
+        while(!empty) {
+            final ConsumerRecords<String, String> records = this.consumer_state.poll(this.poll_duration);
+            for (final ConsumerRecord<String, String> record : records) {
+                this.start_transaction();
+                this.compute_state(record);
+                this.commit_transaction(record);
+            }
+            if(records.count() == 0){
+                empty = true;
+            }
         }
         if (this.verbose) {
             System.out.println("Streamer " + this.name + " - ID " +
