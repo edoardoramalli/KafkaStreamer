@@ -3,6 +3,11 @@ We provide administrative tools to create the bash files to lunch a kafka stream
 Each message is a pair of `<key,value>`, and by design, is guaranteed that a message with the same key is processed along the same stream unless of rebalancing due to crash of a part's stage of the pipeline. In this way we respect the fifo order of the messages.
 Using the Transaction method we can guarantee exactly one semantic.
 
+## Requirements
+- Python >= 3.7
+- Java >= 1.7
+- [Kafka](https://kafka.apache.org/downloads) >= 2.5.0
+
 ## Usage
 
 ### 1. XML File
@@ -36,28 +41,36 @@ The mandatory parameters are:
 Using the command:
 `python3 KafkaParser.py -F template.xml
 `
-It generates the bash file necessary to start the entire pipeline in the bash folder.
+It generates the bash files necessary to start the entire pipeline in the bash folder `../ParserKafka/Bash`
 ### 3. Start Zookeeper
-To start the zookeeper element
+To start zookeeper
+
 `sh StartZookeeper.sh
 `
 ### 4. Start Kafka Broker
-To start a kafka broker
+To start a kafka broker. If in your XML file you express more replicas, so more boostrap, 
+you have to lunch more kafka broker. For each of them a bash file is generated.
+The name of the kafka bash files have the same structure but in increasing order.
+
 `sh StartKafka0.sh
 `
 ### 5. Create Topics
-Generate the topics with some specific configuration like log compaction
+Generate the topics with some specific configuration like log compaction for the state topic.
+
 `sh CreateTopics.sh
 `
 
 ### 6. Start Producer
-To lunch a producer that allows to feed the pipeline
+To lunch a producer that allows to feed the pipeline. So create messages for the stream id in first stage of the pipeline.
+
 `sh StartProducer.sh
 `
 ### 7. Start Streamers
 At the end, start the streamer, that represent, each of them, a stage of the pipeline in a specific partition. For example:
 `sh __Streamer__1996.0.0.sh
 `
-Start the streamer at stage 0 in the partition 0.
+
+Start the streamer with id 1996 at stage 0 in the partition 0. 
+`__Streamer__<ID>.<STAGE>.<PARTITION>`
 
 
