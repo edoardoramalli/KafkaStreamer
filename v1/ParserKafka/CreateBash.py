@@ -1,5 +1,5 @@
 
-def create_bash_streamer(list_stage, partition, stream_id, jar_folder, list_streamer, bootstrap):
+def create_bash_streamer(list_stage, partition, stream_id, list_streamer, bootstrap, bash_folder):
     for stage in list_stage:
         for part in range(partition):
             file_bash = "__Streamer__" + \
@@ -7,10 +7,10 @@ def create_bash_streamer(list_stage, partition, stream_id, jar_folder, list_stre
                         str(stage) + "." + \
                         str(part) + ".sh"
 
-            with open("./Bash/" + file_bash, "w+") as file:
+            with open(bash_folder + file_bash, "w+") as file:
                 file.write("#!/usr/bin/env bash" + "\n")
                 file.write("java -jar ")
-                file.write(jar_folder)
+                file.write(list_streamer[stage]["jar"])
                 file.write("/Streamer.jar ")
                 file.write("-f " + str(list_streamer[stage]["operation"]) + " ")
                 file.write("-s " + str(stream_id) + " ")
@@ -51,9 +51,9 @@ def string_compact_topic(kafka_folder, zookeeper, replica, partition, topic_name
     return command
 
 
-def create_bash_topic(kafka_folder, list_stage, stream_id, zookeeper, replica, partition):
+def create_bash_topic(kafka_folder, list_stage, stream_id, zookeeper, replica, partition, bash_folder):
     list_stage = sorted(list_stage)
-    with open("./Bash/" + "CreateTopics.sh", "w+") as file:
+    with open(bash_folder + "CreateTopics.sh", "w+") as file:
         file.write("#!/usr/bin/env bash" + "\n")
         for stage in list_stage:
             file.write(string_normal_topic(kafka_folder,
@@ -75,16 +75,16 @@ def create_bash_zookeeper(kafka_folder, properties_folder, bash_folder):
     command = "sh "
     command += str(kafka_folder) + "/zookeeper-server-start.sh "
     command += properties_folder + "/zookeeper.properties"
-    with open(bash_folder + "/StartZookeeper.sh", "w") as file:
+    with open(bash_folder + "/Zookeeper.sh", "w") as file:
         file.write("#!/usr/bin/env bash" + "\n")
         file.write(command + "\n")
 
 
-def create_bash_kafka_server(kafka_folder, kafka_config, index, bash_folder):
+def create_bash_kafka_server(kafka_folder, kafka_properties, kafka_name, bash_folder):
     command = "sh "
     command += str(kafka_folder) + "/kafka-server-start.sh "
-    command += kafka_config
-    with open(bash_folder + "/StartKafka" + str(index) + ".sh", "w") as file:
+    command += kafka_properties + "/" + kafka_name + ".properties"
+    with open(bash_folder + "/" + str(kafka_name) + ".sh", "w") as file:
         file.write("#!/usr/bin/env bash" + "\n")
         file.write(command + "\n")
 
@@ -98,6 +98,6 @@ def create_producer(jar_folder, stream_id, initial_stage, bootstrap, bash_folder
     command += " -w " + str(wait)
     command += " -p " + str(partition)
 
-    with open(bash_folder + "/StartProducer.sh", "w") as file:
+    with open(bash_folder + "/Producer.sh", "w") as file:
         file.write("#!/usr/bin/env bash" + "\n")
         file.write(command + "\n")

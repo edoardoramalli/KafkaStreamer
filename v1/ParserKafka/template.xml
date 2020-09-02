@@ -1,22 +1,59 @@
 <?xml version="1.0"?>
 <Stream id="1996">
-    <bootstrap value="127.0.0.1:9092"/>
-    <zookeeper value="127.0.0.1:2181"/>
-    <log value="/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/Log"/>
-    <kafka value="/Users/edoardo/Documents/kafka/bin/"/>
-    <replica value="1"/>
+    <replica value="2"/>
     <partition value="2"/>
-    <jar value="/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/"/>
+    <output value="/Users/edoardo/Desktop/"/>
+    <configuration value="/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/ParserKafka/Configuration/"/>
+
+    <Topic>
+        <socket>127.0.0.1:2181</socket>
+        <kafka>/Users/edoardo/Documents/kafka/bin/</kafka>
+    </Topic>
+
+    <Zookeeper>
+        <socket>127.0.0.1:2181</socket>
+        <kafka>/Users/edoardo/Documents/kafka/bin/</kafka>
+        <properties>/Users/edoardo/Properties/</properties>
+        <log>~/Desktop/Log/</log>
+    </Zookeeper>
+
+    <Server>
+        <socket>127.0.0.1:9092</socket>
+        <name>Kafka0</name>
+        <kafka>/Users/edoardo/Documents/kafka/bin/</kafka>
+        <properties>/Users/edoardo/Properties/</properties>
+        <log>~/Desktop/Log/</log>
+    </Server>
+
+    <Server>
+        <socket>127.0.0.1:9093</socket>
+        <name>Kafka1</name>
+        <kafka>/Users/edoardo/Documents/kafka/bin/</kafka>
+        <properties>/Users/edoardo/Properties/</properties>
+        <log>~/Desktop/Log/</log>
+    </Server>
+
     <Streamer>
         <stage>0</stage>
         <operation>adder</operation>
+        <jar>/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/</jar>
     </Streamer>
+
     <Streamer>
         <stage>2</stage>
         <operation>adder</operation>
+        <jar>/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/</jar>
     </Streamer>
+
     <Streamer>
         <stage>1</stage>
         <operation>adder</operation>
+        <jar>/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/</jar>
     </Streamer>
+
+    <Producer>
+        <jar>/Users/edoardo/Documents/GitHub/KafkaStreamer/v1/Jar/</jar>
+        <wait>7000</wait>
+    </Producer>
+
 </Stream>

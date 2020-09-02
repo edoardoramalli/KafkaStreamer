@@ -1,13 +1,13 @@
-def create_config_kafka_server(id, stream_id, partition, port, zookeeper, log, properties_folder, replica):
-    config_file_name = properties_folder + "/kafka_" + str(id) + ".properties"
+def create_config_kafka_server(stream_id, kafka_server_name, partition, socket, zookeeper, log, properties_folder, replica):
+    config_file_name = properties_folder + "/" + str(kafka_server_name) + ".properties"
 
     with open("./Configuration/" + "kafka.properties", 'r') as file:
         filedata = file.read()
 
-    properties = {'broker.id': str(id),
-                  'log.dirs': log + '/' + str(stream_id) + "/" + str(id),
+    properties = {'log.dirs': log + '/' + str(stream_id) + "/" + str(kafka_server_name),
                   'num.partitions': str(partition),
-                  'listeners': 'PLAINTEXT://:' + str(port),
+                  'listeners': 'PLAINTEXT://' + str(socket),
+                  'advertised.listeners': 'PLAINTEXT://' + str(socket),
                   'zookeeper.connect': zookeeper,
                   'offsets.topic.replication.factor': str(replica),
                   'transaction.state.log.replication.factor': str(replica)}
@@ -17,13 +17,13 @@ def create_config_kafka_server(id, stream_id, partition, port, zookeeper, log, p
         value_property = properties[property]
         filedata = filedata.replace(name_property + '=?', name_property + '=' + value_property)
 
-    with open(config_file_name, 'w') as file:
+    with open(config_file_name, 'w+') as file:
         file.write(filedata)
 
     return config_file_name
 
 
-def create_config_zookeeper(port, log):
+def create_config_zookeeper(port, log, stream_id, zookeeper_properties):
     zookeeper_file_name = "zookeeper.properties"
     # Read in the file
     with open("./Configuration/" + zookeeper_file_name, 'r') as file:
@@ -32,7 +32,7 @@ def create_config_zookeeper(port, log):
     filedata = filedata.replace("clientPort=?", 'clientPort=' + str(port))
 
     properties = {'clientPort': str(port),
-                  'dataDir': log + "/zookeeper"}
+                  'dataDir': log + "/" + stream_id + "/zookeeper"}
 
     for property in properties:
         name_property = property
@@ -40,7 +40,7 @@ def create_config_zookeeper(port, log):
         filedata = filedata.replace(name_property + '=?', name_property + '=' + value_property)
 
     # Write the file out again
-    with open('./Properties/' + zookeeper_file_name, 'w') as file:
+    with open(zookeeper_properties + zookeeper_file_name, 'w') as file:
         file.write(filedata)
 
     return zookeeper_file_name

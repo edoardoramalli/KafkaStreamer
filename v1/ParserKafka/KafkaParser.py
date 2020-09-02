@@ -9,6 +9,115 @@ import os
 import argparse
 
 
+def parse_server(root):
+    list_server_socket = {}
+    list_server_log = {}
+    list_server_properties = {}
+    list_server_kafka = {}
+
+    list_server_name = []
+
+    for server in root.iter('Server'):
+        server_properties = {prop.tag: prop.text for prop in server}
+
+        # Check log
+        if "log" not in server_properties:
+            raise ValueError("No log tag found in 'Server' element")
+
+        # Check name
+        if "name" not in server_properties:
+            raise ValueError("No name tag found in 'Server' element")
+
+        # Check log
+        if "kafka" not in server_properties:
+            raise ValueError("No kafka tag found in 'Server' element")
+
+        # Check log
+        if "socket" not in server_properties:
+            raise ValueError("No log tag found in 'Server' element")
+
+        # Check log
+        if "properties" not in server_properties:
+            raise ValueError("No properties tag found in 'Server' element")
+
+        current_name = server_properties["name"]
+
+        if current_name in list_server_name:
+            raise ValueError("Name Kafka Server already exists")
+        else:
+            list_server_name.append(current_name)
+
+        socket = server_properties["socket"]
+        check_socket(socket)
+        list_server_socket[current_name] = socket
+        list_server_log[current_name] = server_properties["log"]
+        list_server_properties[current_name] = server_properties["properties"]
+        list_server_kafka[current_name] = server_properties["kafka"]
+
+    return list_server_name, list_server_properties, list_server_socket, list_server_kafka, list_server_log
+
+
+def parse_zookeeper(root):
+    for zookeeper in root.iter('Zookeeper'):
+        zookeeper_properties = {prop.tag: prop.text for prop in zookeeper}
+
+        # Check log
+        if "log" not in zookeeper_properties:
+            raise ValueError("No log tag found in 'Zookeeper' element")
+
+        # Check log
+        if "kafka" not in zookeeper_properties:
+            raise ValueError("No kafka tag found in 'Zookeeper' element")
+
+        # Check log
+        if "socket" not in zookeeper_properties:
+            raise ValueError("No log tag found in 'Zookeeper' element")
+
+        # Check log
+        if "properties" not in zookeeper_properties:
+            raise ValueError("No properties tag found in 'Zookeeper' element")
+
+        zookeeper_socket = zookeeper_properties["socket"]
+        check_socket(zookeeper_socket)
+        zookeeper_kafka = zookeeper_properties["kafka"]
+        zookeeper_log = zookeeper_properties["log"]
+        zookeeper_properties = zookeeper_properties["properties"]
+
+        return zookeeper_socket, zookeeper_kafka, zookeeper_log, zookeeper_properties
+
+
+def parse_producer(root):
+    for producer in root.iter('Producer'):
+        producer_properties = {prop.tag: prop.text for prop in producer}
+        # Check jar file
+        if "jar" not in producer_properties:
+            raise ValueError("No jar tag found in 'Producer' element")
+        # Check wait time
+        if "wait" not in producer_properties:
+            raise ValueError("No wait tag found in 'Producer' element")
+
+        wait_time = int(producer_properties['wait'])
+        jar_file = producer_properties['jar']
+
+        return jar_file, wait_time
+
+
+def parse_topic(root):
+    for topic in root.iter('Topic'):
+        topic_properties = {prop.tag: prop.text for prop in topic}
+        # Check jar file
+        if "kafka" not in topic_properties:
+            raise ValueError("No kafka tag found in 'Topic' element")
+        # Check wait time
+        if "socket" not in topic_properties:
+            raise ValueError("No socket tag found in 'Topic' element")
+
+        socket = topic_properties["socket"]
+        check_socket(socket)
+
+        return socket, topic_properties["kafka"]
+
+
 def parse_stage(root):
     list_streamer = {}
     list_stage = []
@@ -28,6 +137,10 @@ def parse_stage(root):
             if streamer_properties['operation'] not in list_possible_function:
                 raise ValueError("Function not allowed in operation tag")
 
+        # Check function Streamer
+        if "jar" not in streamer_properties:
+            raise ValueError("No jar file found in 'Streamer' element")
+
         current_stage = int(streamer_properties['stage'])
 
         list_stage.append(current_stage)
@@ -39,7 +152,7 @@ def parse_stage(root):
 
     if list_stage != compare_list:
         missing = list(set(compare_list) - set(list_stage))
-        raise ValueError("Missing stage:" + str(missing))
+        raise ValueError("Missing stage: " + str(missing))
 
     return list_stage, list_streamer
 
@@ -51,14 +164,18 @@ def check_tag_string(tag, name, quantity):
         else:
             return tag
     else:
-        raise ValueError("Invalid" + name + " information")
+        raise ValueError("Invalid " + name + " information")
 
 
 def check_tag_int(tag, name, quantity):
     if len(tag) == quantity:
         return int(tag[0])
     else:
-        raise ValueError("Invalid" + name + " information")
+        raise ValueError("Invalid " + name + " information")
+
+
+def check_socket(socket):
+    ipaddress.ip_address(socket[:socket.index(':')])
 
 
 def check_tag_ip(tag, name, quantity):
@@ -76,18 +193,18 @@ def check_tag_ip(tag, name, quantity):
 def parse_xml(filename):
     stream = Et.parse(filename).getroot()
 
-    # Folder System
-    current_folder = os.path.abspath(os.getcwd())
+    # Output and Template Folder
+    output = [output.attrib['value'] for output in stream.iter('output')]
+    configuration = [configuration.attrib['value'] for configuration in stream.iter('configuration')]
 
-    properties_folder = current_folder + "/Properties"
-    if not os.path.exists(properties_folder):
-        os.makedirs(properties_folder)
+    output = check_tag_string(output, "output", 1)
+    configuration = check_tag_string(configuration, "configuration", 1)
 
-    bash_folder = current_folder + "/Bash"
+    bash_folder = output + "/Bash/"
     if not os.path.exists(bash_folder):
         os.makedirs(bash_folder)
 
-    config_folder = current_folder + "/Configuration"
+    config_folder = configuration
     if not os.path.exists(config_folder):
         raise ValueError("No configuration template folder found")
 
@@ -102,50 +219,57 @@ def parse_xml(filename):
         random.seed(int(time.time()))
         stream_id = random.randint(0, sys.maxsize)
 
-    # XML Tag General Info
-    bootstrap = [bootstrap.attrib['value'] for bootstrap in stream.iter('bootstrap')]
-    log = [log.attrib['value'] for log in stream.iter('log')]
-    zookeeper = [zookeeper.attrib['value'] for zookeeper in stream.iter('zookeeper')]
-    jar_folder = [jar_folder.attrib['value'] for jar_folder in stream.iter('jar')]
-    kafka_folder = [kafka_folder.attrib['value'] for kafka_folder in stream.iter('kafka')]
-
     replica = [replica.attrib['value'] for replica in stream.iter('replica')]
     partition = [partition.attrib['value'] for partition in stream.iter('partition')]
 
     # Check Tags
-    zookeeper = check_tag_ip(zookeeper, "zookeeper", 1)[0]
     partition = check_tag_int(partition, "partition", 1)
-    jar_folder = check_tag_string(jar_folder, "jar_folder", 1)
-    kafka_folder = check_tag_string(kafka_folder, "kafka_folder", 1)
-    log = check_tag_string(log, "log", 1)
     replica = check_tag_int(replica, "replica", 1)
-    bootstrap = check_tag_ip(bootstrap, "bootstrap", replica)
+
+    # Parse Zookeeper
+    zookeeper_socket, zookeeper_kafka, zookeeper_log, zookeeper_properties = parse_zookeeper(stream)
+
+    # Parser Server
+    list_server_name, list_server_properties, list_server_socket, list_server_kafka, list_server_log = parse_server(
+        stream)
 
     # Parse Streamer
     list_stage, list_streamer = parse_stage(stream)
 
-    # Create Zookeeper
-    port_zookeeper = zookeeper.split(':')[1]
-    create_config_zookeeper(port_zookeeper, log)
-    create_bash_zookeeper(kafka_folder, properties_folder, bash_folder)
+    # Parse Producer
+    jar_file_producer, wait_time_producer = parse_producer(stream)
+
+    # Parse Topic
+    topic_socket, topic_kafka = parse_topic(stream)
 
     # Create Kafka Server
-    for index, server in enumerate(bootstrap):
-        kafka_config = create_config_kafka_server(index,
-                                                  stream_id,
-                                                  partition,
-                                                  server.split(":")[1],
-                                                  zookeeper,
-                                                  log,
-                                                  properties_folder,
-                                                  replica)
-        create_bash_kafka_server(kafka_folder, kafka_config, index, bash_folder)
+    if len(list_server_name) != replica:
+        raise ValueError("Replica number is different from number of kafka server")
 
-    create_bash_streamer(list_stage, partition, stream_id, jar_folder, list_streamer, bootstrap[0])
-    create_bash_topic(kafka_folder, list_stage, stream_id, zookeeper, replica, partition)
+    for index, server in enumerate(list_server_name):
+        create_config_kafka_server(stream_id,
+                                   list_server_name[index],
+                                   partition,
+                                   list_server_socket[server],
+                                   zookeeper_socket,
+                                   list_server_log[server],
+                                   list_server_properties[server],
+                                   replica)
+        create_bash_kafka_server(list_server_kafka[server],
+                                 list_server_properties[server],
+                                 list_server_name[index],
+                                 bash_folder)
+
+    create_bash_streamer(list_stage, partition, stream_id, list_streamer, list_server_socket[list_server_name[0]],
+                         bash_folder)
+    create_bash_topic(topic_kafka, list_stage, stream_id, topic_socket, replica, partition, bash_folder)
 
     # Create Producer
-    create_producer(jar_folder, stream_id, list_stage[0], bootstrap[0], bash_folder, partition)
+    create_producer(jar_file_producer, stream_id, list_stage[0], list_server_socket[list_server_name[0]],
+                    bash_folder, partition, wait_time_producer)
+
+    create_config_zookeeper(zookeeper_socket.split(":")[1], zookeeper_log, stream_id, zookeeper_properties)
+    create_bash_zookeeper(zookeeper_kafka, zookeeper_properties, bash_folder)
 
 
 def main(args):

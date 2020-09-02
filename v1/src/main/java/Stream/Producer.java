@@ -62,6 +62,7 @@ public class Producer {
         props.put("value.serializer", StringSerializer.class.getName());
         props.put("enable.idempotence", true);
         props.put("transactional.id", "producer");
+        props.put("transaction.timeout.ms", "20000");
 
         final KafkaProducer<String, String> producer = new KafkaProducer<>(props);
 

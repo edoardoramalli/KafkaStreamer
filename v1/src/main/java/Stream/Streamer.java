@@ -67,7 +67,7 @@ public class Streamer implements Runnable {
     private int num_msg = 0;
 
     // General Variable
-    private final Duration poll_duration = Duration.of(5, ChronoUnit.SECONDS);
+    private final Duration poll_duration = Duration.of(10, ChronoUnit.SECONDS);
 
 
     public Streamer(String function, int streamer_id, int input_stage, int output_stage, int node_id,
@@ -103,6 +103,7 @@ public class Streamer implements Runnable {
         this.props_producer.put("enable.idempotence", "true");
         this.props_producer.put("retries", "3");
         this.props_producer.put("acks", "all");
+        this.props_producer.put("transaction.timeout.ms", "20000");
 
         this.setUpProducer();
 
