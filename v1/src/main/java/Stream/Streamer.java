@@ -80,6 +80,8 @@ public class Streamer implements Runnable {
         this.node_id = node_id;
         this.bootstrap_server = bootstrap_address;
 
+        // Object variable
+
         this.name = this.streamer_id + "_" + this.input_stage + "_" + this.node_id;
         this.transaction_id = "__transaction_id_" + this.name;
 
@@ -117,11 +119,15 @@ public class Streamer implements Runnable {
         this.props_consumer.put("enable.auto.commit", "false");
         this.props_consumer.put("auto.offset.reset", "earliest");
 
+        // Resume previous state if present
         this.resume_state();
 
         this.setUpConsumer();
     }
 
+    /**
+     * Initialize consumer state and subscribe to state topic
+     */
     private void setUpConsumerState() {
         Properties p = new Properties();
         p.put("bootstrap.servers", this.bootstrap_server);
@@ -139,6 +145,9 @@ public class Streamer implements Runnable {
         this.consumer_state.subscribe(topics_subscription);
     }
 
+    /**
+     * Initialize Consumer and subscribe to input topic
+     */
     private void setUpConsumer() {
         this.consumer = new KafkaConsumer<>(this.props_consumer);
         final List<String> topics_subscription = new ArrayList<>();
@@ -146,6 +155,9 @@ public class Streamer implements Runnable {
         this.consumer.subscribe(topics_subscription);
     }
 
+    /**
+     * Initialize Producer
+     */
     private void setUpProducer() {
         this.producer = new KafkaProducer<>(this.props_producer);
         producer.initTransactions();
@@ -195,6 +207,8 @@ public class Streamer implements Runnable {
     /**
      * Poll messages from topic state
      * Compute new state
+     * Commit message
+     * Until the poll is empty. Ensure that we have consumed all the messages in topic state
      */
     private void get_state() {
         boolean empty = false;
@@ -422,6 +436,7 @@ public class Streamer implements Runnable {
      * Poll old state if present
      * Update state
      * Unsubscribe from state topic
+     * close consumer state
      */
     private void resume_state() {
         this.setUpConsumerState();
@@ -431,7 +446,6 @@ public class Streamer implements Runnable {
 
 
     /**
-     * Resume previous state if present
      * Consume a poll of record
      * Start Transaction
      * Process one record

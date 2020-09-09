@@ -10,7 +10,7 @@ import org.apache.commons.cli.*;
 
 public class Producer {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         final int numMessages = 100000;
 
         Options options = new Options();
